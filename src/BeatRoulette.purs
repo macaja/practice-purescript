@@ -6,7 +6,7 @@ import Prelude (bind, (<$>),(<*>), ($), (>>=))
 import Effect
 import Data.Maybe
 import Data.Maybe (fromMaybe)
-import Data.Array ((..), head, cons)
+import Data.Array ((..), head, cons,length)
 import Data.Eq ((==))
 import Control.Applicative (pure)
 import Data.Functor (map)
@@ -14,8 +14,14 @@ import Effect.Random (randomInt)
 import Data.Foldable (or)
 import Test.Unit.Console (print)
 
+type BetResult = {betCash::Int,tabValue::Int}
+
+type Result = {cash::Int, tabValue::Int}
+
+type EventResult = {cashEvents:: Array Int, tabValueEvents::Array Int}
+
 initialCash :: Array Int
-initialCash = [50]
+initialCash = [100]
 
 initialTabValue :: Array Int
 initialTabValue = [1]
@@ -39,44 +45,37 @@ checkIfLandOnBet number myBet = do
                     checkArray :: Int -> Array Int -> Boolean
                     checkArray loanNumber coverBet = do or $ (\n -> n == loanNumber) <$> coverBet
 
-bet :: Int -> Int -> Effect Int
+bet :: Int -> Int -> Effect BetResult
 bet cash tabValue = do
     win <- checkIfLandOnBet landNumber betCoverTabs
     pure $ moneyGotten win
     where
-        moneyGotten :: Boolean -> Int
+        moneyGotten :: Boolean -> BetResult
         moneyGotten win = case win of
-            true -> (9 * tabValue) - (6 * tabValue)
-            false -> -(6 * tabValue)
+            true -> {betCash: (9 * tabValue) - (6 * tabValue),tabValue:1}
+            false -> {betCash: -(6 * tabValue),tabValue:tabValue*2}
 
-play :: Array Int -> Array Int -> Maybe (Effect Int)
+play :: Array Int -> Array Int -> Maybe (Effect Result)
 play cash tabValue = do
     c <- head cash
     tv <- head tabValue
     let b = bet c tv
     pure $ newCashValue b c
     where
-        newCashValue :: Effect Int -> Int -> Effect Int
+        newCashValue :: Effect BetResult -> Int -> Effect Result
         newCashValue betEff lastCashValue = do
-                            betValue <- betEff
-                            pure $ lastCashValue + betValue
+                            betResult <- betEff
+                            pure $ {cash:lastCashValue + betResult.betCash,tabValue:betResult.tabValue}
 
-unsafeGetPlay :: Array Int -> Array Int -> Effect Int
-unsafeGetPlay initC initTV = fromMaybe (landNumber) (play initC initTV)
+unsafeGetPlay :: Array Int -> Array Int -> Effect Result
+unsafeGetPlay initC initTV = fromMaybe (pure $ {cash: -123,tabValue: -321}) (play initC initTV)
 
-xxx :: Array Int -> Array Int -> Effect (Array Int)
+xxx :: Array Int -> Array Int -> Effect EventResult
 xxx cashs tabs = do
     result <- unsafeGetPlay cashs tabs
-    if(result > 0)
-    then xxx (cons result cashs) tabs
-    else pure $ cashs
-
-
-newTabValue :: Int -> Int -> Int
-newTabValue bet tV = if (bet > 0)
-                    then 1
-                    else tV * 2
-
+    if(result.cash > 0)
+    then xxx (cons result.cash cashs) (cons result.tabValue tabs)
+    else pure $ {cashEvents: cashs,tabValueEvents: tabs}
 
 
 
